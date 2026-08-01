@@ -1,0 +1,120 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="980" viewBox="0 0 1600 980" role="img" aria-labelledby="title desc">
+  <title id="title">Arquitetura atualizada da POC RAG CDC com OpenRouter</title>
+  <desc id="desc">Diagrama da POC com Streamlit, LangChain, Docling, Sentence Transformers, PostgreSQL pgvector, OpenRouter, baseline e avaliação.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1f3b57"/>
+    </marker>
+    <style>
+      .bg { fill: #f7fafc; }
+      .title { font: 700 44px Arial, sans-serif; fill: #0f172a; }
+      .subtitle { font: 400 24px Arial, sans-serif; fill: #475569; }
+      .section-title { font: 700 22px Arial, sans-serif; fill: #0f172a; }
+      .box { fill: #ffffff; stroke: #9db8d1; stroke-width: 2; rx: 18; }
+      .box-blue { fill: #eff6ff; stroke: #60a5fa; }
+      .box-green { fill: #ecfdf5; stroke: #34d399; }
+      .box-purple { fill: #f5f3ff; stroke: #a78bfa; }
+      .box-yellow { fill: #fffbeb; stroke: #f59e0b; }
+      .box-red { fill: #fff1f2; stroke: #fb7185; }
+      .label { font: 700 23px Arial, sans-serif; fill: #0f172a; }
+      .text { font: 400 18px Arial, sans-serif; fill: #334155; }
+      .small { font: 400 16px Arial, sans-serif; fill: #475569; }
+      .mono { font: 600 16px Consolas, monospace; fill: #1e293b; }
+      .arrow { stroke: #1f3b57; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .arrow-dashed { stroke: #7c3aed; stroke-width: 3; fill: none; marker-end: url(#arrow); stroke-dasharray: 8 8; }
+      .boundary { fill: none; stroke: #94a3b8; stroke-width: 2; stroke-dasharray: 10 8; rx: 24; }
+      .pill { fill: #e2e8f0; rx: 14; }
+      .pill-text { font: 600 15px Arial, sans-serif; fill: #334155; }
+    </style>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1600" height="980"/>
+  <text class="title" x="800" y="66" text-anchor="middle">Chatbot RAG especialista no Código de Defesa do Consumidor</text>
+  <text class="subtitle" x="800" y="105" text-anchor="middle">Arquitetura simplificada da POC com OpenRouter + PostgreSQL/pgvector</text>
+
+  <rect class="boundary" x="48" y="145" width="1504" height="610"/>
+  <text class="section-title" x="80" y="185">Docker Compose</text>
+
+  <rect class="box box-blue" x="80" y="230" width="190" height="150"/>
+  <text class="label" x="175" y="275" text-anchor="middle">Usuário</text>
+  <text class="text" x="175" y="312" text-anchor="middle">faz pergunta</text>
+  <text class="text" x="175" y="338" text-anchor="middle">sobre o CDC</text>
+
+  <rect class="box box-blue" x="340" y="230" width="230" height="150"/>
+  <text class="label" x="455" y="270" text-anchor="middle">Streamlit</text>
+  <text class="text" x="455" y="306" text-anchor="middle">interface web limpa</text>
+  <text class="text" x="455" y="332" text-anchor="middle">RAG x Baseline</text>
+  <text class="mono" x="455" y="360" text-anchor="middle">container app</text>
+
+  <rect class="box box-green" x="650" y="210" width="340" height="190"/>
+  <text class="label" x="820" y="255" text-anchor="middle">LangChain</text>
+  <text class="text" x="820" y="294" text-anchor="middle">orquestra prompt, retrieval</text>
+  <text class="text" x="820" y="320" text-anchor="middle">e geração da resposta</text>
+  <text class="small" x="820" y="354" text-anchor="middle">mesmo modelo, temperatura e template</text>
+
+  <rect class="box box-purple" x="1110" y="220" width="260" height="170"/>
+  <text class="label" x="1240" y="264" text-anchor="middle">OpenRouter</text>
+  <text class="text" x="1240" y="302" text-anchor="middle">LLM gratuito via API</text>
+  <text class="mono" x="1240" y="334" text-anchor="middle">gpt-oss-20b:free</text>
+  <text class="small" x="1240" y="360" text-anchor="middle">selecionável na UI</text>
+
+  <rect class="box box-green" x="80" y="505" width="210" height="145"/>
+  <text class="label" x="185" y="548" text-anchor="middle">Fontes oficiais</text>
+  <text class="text" x="185" y="585" text-anchor="middle">Planalto + STJ</text>
+  <text class="small" x="185" y="615" text-anchor="middle">CDC + súmulas</text>
+
+  <rect class="box box-yellow" x="355" y="505" width="230" height="145"/>
+  <text class="label" x="470" y="548" text-anchor="middle">Extração</text>
+  <text class="text" x="470" y="585" text-anchor="middle">Docling</text>
+  <text class="small" x="470" y="615" text-anchor="middle">fallback HTML simples</text>
+
+  <rect class="box box-yellow" x="650" y="505" width="240" height="145"/>
+  <text class="label" x="770" y="548" text-anchor="middle">Chunks</text>
+  <text class="text" x="770" y="585" text-anchor="middle">segmentação por artigo</text>
+  <text class="small" x="770" y="615" text-anchor="middle">metadado: Art. X</text>
+
+  <rect class="box box-yellow" x="955" y="505" width="250" height="145"/>
+  <text class="label" x="1080" y="548" text-anchor="middle">Embeddings</text>
+  <text class="text" x="1080" y="585" text-anchor="middle">Sentence Transformers</text>
+  <text class="small" x="1080" y="615" text-anchor="middle">local, sem API paga</text>
+
+  <rect class="box box-purple" x="1275" y="505" width="225" height="145"/>
+  <text class="label" x="1388" y="548" text-anchor="middle">pgvector</text>
+  <text class="text" x="1388" y="585" text-anchor="middle">PostgreSQL</text>
+  <text class="small" x="1388" y="615" text-anchor="middle">coleções CDC e STJ</text>
+
+  <path class="arrow" d="M270 305 H332"/>
+  <path class="arrow" d="M570 305 H642"/>
+  <path class="arrow" d="M990 305 H1102"/>
+  <path class="arrow" d="M1370 305 H1418"/>
+  <rect class="box box-blue" x="1425" y="230" width="110" height="150"/>
+  <text class="label" x="1480" y="292" text-anchor="middle">Resposta</text>
+  <text class="small" x="1480" y="326" text-anchor="middle">com artigos</text>
+  <text class="small" x="1480" y="350" text-anchor="middle">citados</text>
+
+  <path class="arrow" d="M290 578 H347"/>
+  <path class="arrow" d="M585 578 H642"/>
+  <path class="arrow" d="M890 578 H947"/>
+  <path class="arrow" d="M1205 578 H1267"/>
+  <path class="arrow" d="M1388 505 C1388 442 925 438 820 405"/>
+  <text class="small" x="1070" y="450" text-anchor="middle">contexto recuperado do CDC</text>
+
+  <rect class="box box-red" x="80" y="790" width="440" height="120"/>
+  <text class="label" x="300" y="832" text-anchor="middle">Avaliação do TCC</text>
+  <text class="text" x="300" y="866" text-anchor="middle">conjunto-ouro 40 perguntas + RAGAS</text>
+  <text class="small" x="300" y="892" text-anchor="middle">alucinação, citação, recusa correta, faithfulness</text>
+
+  <rect class="box" x="590" y="790" width="450" height="120"/>
+  <text class="label" x="815" y="832" text-anchor="middle">Volumes persistentes</text>
+  <text class="text" x="815" y="866" text-anchor="middle">data/cdc.md · pgdata · model_cache</text>
+  <text class="small" x="815" y="892" text-anchor="middle">reexecução idempotente com docker compose up</text>
+
+  <rect class="box" x="1110" y="790" width="390" height="120"/>
+  <text class="label" x="1305" y="832" text-anchor="middle">Comando de demonstração</text>
+  <text class="mono" x="1305" y="872" text-anchor="middle">docker compose up --build</text>
+
+  <rect class="pill" x="1275" y="166" width="105" height="28"/>
+  <text class="pill-text" x="1328" y="186" text-anchor="middle">app</text>
+  <rect class="pill" x="1390" y="166" width="130" height="28"/>
+  <text class="pill-text" x="1455" y="186" text-anchor="middle">postgres</text>
+</svg>

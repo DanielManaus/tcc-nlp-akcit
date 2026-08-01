@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ragcdc-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ragcdc}
+      POSTGRES_USER: ${POSTGRES_USER:-ragcdc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ragcdc}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ragcdc} -d ${POSTGRES_DB:-ragcdc}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: ragcdc-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-nvidia/nemotron-3-ultra-550b-a55b:free}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      OPENROUTER_SITE_URL: ${OPENROUTER_SITE_URL:-http://localhost:8501}
+      OPENROUTER_APP_NAME: ${OPENROUTER_APP_NAME:-RAG-CDC-POC}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.0}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-1800}
+      PYTHONPATH: /app
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-paraphrase-multilingual-MiniLM-L12-v2}
+      EMBEDDING_DIM: ${EMBEDDING_DIM:-384}
+      CDC_URL: ${CDC_URL:-https://www.planalto.gov.br/ccivil_03/leis/l8078compilado.htm}
+      CDC_LOCAL_PATH: ${CDC_LOCAL_PATH:-data/cdc.md}
+      STJ_LOCAL_PATH: ${STJ_LOCAL_PATH:-corpus/stj_sumulas_consumidor.md}
+      HISTORY_LOCAL_PATH: ${HISTORY_LOCAL_PATH:-corpus/historico_cdc.md}
+      # Sobrescreve o host do Postgres para o nome do serviço docker
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-ragcdc}
+      POSTGRES_USER: ${POSTGRES_USER:-ragcdc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ragcdc}
+      RUN_MODE: ${RUN_MODE:-app}
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - model_cache:/app/.cache/huggingface
+
+volumes:
+  pgdata:
+  model_cache:
