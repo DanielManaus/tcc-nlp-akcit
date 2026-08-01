@@ -2,7 +2,11 @@
 
 import streamlit as st
 
-from src.config import OPENROUTER_MODEL, has_llm_credentials
+from src.config import (
+    OPENROUTER_MODEL,
+    has_llm_credentials,
+    openrouter_api_key_options,
+)
 from src.models import list_free_models
 from src.rag_chain import answer_question
 
@@ -20,9 +24,10 @@ st.caption(
 
 if not has_llm_credentials():
     st.error(
-        "⚠️ OPENROUTER_API_KEY não definida. Crie um arquivo `.env` "
-        "a partir de `.env.example` e informe sua chave gratuita de "
-        "https://openrouter.ai/keys"
+        "⚠️ Nenhuma chave OpenRouter definida. Crie um arquivo `.env` "
+        "a partir de `.env.example` e informe ao menos uma chave em "
+        "`OPENROUTER_API_KEY_1`, `OPENROUTER_API_KEY_2` ou "
+        "`OPENROUTER_API_KEY_3`."
     )
     st.stop()
 
@@ -39,7 +44,7 @@ def model_error_message(exc: Exception) -> str:
             "⚠️ O limite diário dos modelos gratuitos do OpenRouter foi atingido.\n\n"
             "Para continuar hoje, escolha uma destas opções:\n\n"
             "- aguardar o reset diário da cota gratuita;\n"
-            "- usar uma conta/chave OpenRouter com cota disponível;\n"
+            "- trocar para outra chave API com cota disponível;\n"
             "- adicionar créditos no OpenRouter para aumentar o limite dos modelos free.\n\n"
             "O RAG e o banco continuam funcionando; apenas a geração da LLM foi bloqueada."
         )
@@ -86,9 +91,19 @@ def render_sources(docs: list, history_docs: list, stj_docs: list) -> None:
             st.caption(trecho)
 
 
-def run_generation(question: str, use_rag: bool, model_name: str) -> dict:
+def run_generation(
+    question: str,
+    use_rag: bool,
+    model_name: str,
+    api_key: str,
+) -> dict:
     try:
-        return answer_question(question, use_rag=use_rag, model_name=model_name)
+        return answer_question(
+            question,
+            use_rag=use_rag,
+            model_name=model_name,
+            api_key=api_key,
+        )
     except Exception as exc:
         return {
             "answer": model_error_message(exc),
@@ -116,6 +131,23 @@ with st.sidebar:
         "Comparar RAG x Baseline",
         value=False,
         help="Responde a mesma pergunta nos dois modos. Ideal para a banca.",
+    )
+
+    api_key_options = openrouter_api_key_options()
+    api_key_labels = [option["label"] for option in api_key_options]
+    selected_api_key_label = st.selectbox(
+        "Chave OpenRouter",
+        api_key_labels,
+        index=0,
+        help=(
+            "Selecione a chave numerada que será usada na próxima pergunta. "
+            "O valor da chave não é exibido na tela."
+        ),
+    )
+    selected_api_key = next(
+        option["api_key"]
+        for option in api_key_options
+        if option["label"] == selected_api_key_label
     )
 
     free_models = cached_free_models()
@@ -157,6 +189,8 @@ with st.sidebar:
     st.code(active_mode, language=None)
     st.caption("Modelo selecionado")
     st.code(selected_model, language=None)
+    st.caption("Chave selecionada")
+    st.code(selected_api_key_label, language=None)
 
 examples = [
     "Quais são os direitos básicos do consumidor?",
@@ -177,6 +211,8 @@ for msg in st.session_state.messages:
         st.markdown(msg["content"])
         if msg.get("generation_mode"):
             st.caption(f"Modo usado: `{msg['generation_mode']}`")
+        if msg.get("api_key_label"):
+            st.caption(f"Chave usada: `{msg['api_key_label']}`")
         if msg.get("effective_model"):
             st.caption(f"Modelo usado: `{msg['effective_model']}`")
 
@@ -190,11 +226,22 @@ if prompt:
     if compare_mode:
         with st.chat_message("assistant"):
             with st.spinner("Consultando RAG e baseline..."):
-                rag = run_generation(prompt, use_rag=True, model_name=selected_model)
-                baseline = run_generation(prompt, use_rag=False, model_name=selected_model)
+                rag = run_generation(
+                    prompt,
+                    use_rag=True,
+                    model_name=selected_model,
+                    api_key=selected_api_key,
+                )
+                baseline = run_generation(
+                    prompt,
+                    use_rag=False,
+                    model_name=selected_model,
+                    api_key=selected_api_key,
+                )
 
             st.markdown("### RAG (com recuperação)")
             st.markdown(rag["answer"])
+            st.caption(f"Chave usada: `{selected_api_key_label}`")
             st.caption(f"Modelo usado: `{rag.get('effective_model') or selected_model}`")
             if not rag.get("error"):
                 render_sources(
@@ -206,6 +253,7 @@ if prompt:
             st.markdown("---")
             st.markdown("### Baseline (sem recuperação)")
             st.markdown(baseline["answer"])
+            st.caption(f"Chave usada: `{selected_api_key_label}`")
             st.caption(
                 f"Modelo usado: `{baseline.get('effective_model') or selected_model}`"
             )
@@ -222,6 +270,7 @@ if prompt:
                 "content": combined_answer,
                 "generation_mode": "Comparação RAG x Baseline",
                 "effective_model": selected_model,
+                "api_key_label": selected_api_key_label,
             }
         )
     else:
@@ -232,11 +281,13 @@ if prompt:
                     prompt,
                     use_rag=generation_mode == "RAG",
                     model_name=selected_model,
+                    api_key=selected_api_key,
                 )
 
             answer = result["answer"]
             st.markdown(answer)
             st.caption(f"Modo usado: `{generation_mode}`")
+            st.caption(f"Chave usada: `{selected_api_key_label}`")
             if result.get("effective_model"):
                 st.caption(f"Modelo usado: `{result['effective_model']}`")
             if generation_mode == "RAG" and not result.get("error"):
@@ -252,5 +303,6 @@ if prompt:
                 "content": answer,
                 "generation_mode": generation_mode,
                 "effective_model": result.get("effective_model"),
+                "api_key_label": selected_api_key_label,
             }
         )

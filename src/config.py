@@ -15,6 +15,11 @@ def _get(name: str, default: str) -> str:
 
 # --- OpenRouter / LLM ---
 OPENROUTER_API_KEY = _get("OPENROUTER_API_KEY", "")
+OPENROUTER_API_KEYS = [
+    _get("OPENROUTER_API_KEY_1", "") or OPENROUTER_API_KEY,
+    _get("OPENROUTER_API_KEY_2", ""),
+    _get("OPENROUTER_API_KEY_3", ""),
+]
 OPENROUTER_MODEL = _get("OPENROUTER_MODEL", "nvidia/nemotron-3-ultra-550b-a55b:free")
 OPENROUTER_BASE_URL = _get("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 OPENROUTER_SITE_URL = _get("OPENROUTER_SITE_URL", "https://localhost:8501")
@@ -95,4 +100,16 @@ def psycopg_connection_string() -> str:
 
 
 def has_llm_credentials() -> bool:
-    return bool(OPENROUTER_API_KEY)
+    return any(OPENROUTER_API_KEYS)
+
+
+def openrouter_api_key_options() -> list[dict]:
+    """Retorna chaves configuradas sem expor os valores na interface."""
+    return [
+        {
+            "label": f"Chave API {index}",
+            "api_key": api_key,
+        }
+        for index, api_key in enumerate(OPENROUTER_API_KEYS, start=1)
+        if api_key
+    ]

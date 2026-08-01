@@ -55,7 +55,17 @@ Na primeira vez, crie o `.env` e informe sua chave do OpenRouter:
 cp .env.example .env
 ```
 
-Depois edite `OPENROUTER_API_KEY`.
+Depois edite as chaves OpenRouter. A interface permite alternar entre elas
+sem exibir os valores:
+
+```env
+OPENROUTER_API_KEY_1=sk-or-v1-...
+OPENROUTER_API_KEY_2=sk-or-v1-...
+OPENROUTER_API_KEY_3=sk-or-v1-...
+```
+
+Se preencher apenas `OPENROUTER_API_KEY`, ela será usada como `Chave API 1`
+por compatibilidade.
 
 Com o `.env` pronto, suba tudo com um comando:
 

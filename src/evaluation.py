@@ -124,7 +124,10 @@ def run_ragas_faithfulness(rag_results: list[dict]) -> float | None:
 
 def main():
     if not has_llm_credentials():
-        raise SystemExit("OPENROUTER_API_KEY não definida. Abortando avaliação.")
+        raise SystemExit(
+            "Nenhuma chave OpenRouter definida. Configure OPENROUTER_API_KEY_1, "
+            "OPENROUTER_API_KEY_2 ou OPENROUTER_API_KEY_3."
+        )
     print("🔍 Construindo cadeias...")
     rag_chain = build_rag_chain()
     baseline_chain = build_baseline_chain()

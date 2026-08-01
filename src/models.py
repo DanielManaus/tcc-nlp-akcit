@@ -3,14 +3,13 @@
 Substitui o Qwen 2.5 local do TCC por um modelo gratuito do OpenRouter,
 mantendo a compatibilidade com LangChain (ChatOpenAI).
 """
-from functools import lru_cache
 
 import requests
 from langchain_openai import ChatOpenAI
 
 from src.config import (
     LLM_MAX_TOKENS,
-    OPENROUTER_API_KEY,
+    OPENROUTER_API_KEYS,
     OPENROUTER_BASE_URL,
     OPENROUTER_MODEL,
     OPENROUTER_SITE_URL,
@@ -65,8 +64,9 @@ BLOCKED_MODEL_TERMS = (
 def list_free_models() -> list[dict]:
     """Lista apenas os modelos gratuitos curados para a POC."""
     headers = {"User-Agent": "RAG-CDC-POC"}
-    if OPENROUTER_API_KEY:
-        headers["Authorization"] = f"Bearer {OPENROUTER_API_KEY}"
+    api_key = next((key for key in OPENROUTER_API_KEYS if key), "")
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
 
     try:
         response = requests.get(
@@ -114,18 +114,20 @@ def list_free_models() -> list[dict]:
     return models
 
 
-@lru_cache(maxsize=16)
 def get_llm(
     model_name: str | None = None,
     temperature: float | None = None,
+    api_key: str | None = None,
 ) -> ChatOpenAI:
     """Retorna o chat model configurado para o OpenRouter.
 
     Levanta RuntimeError se a chave de API não estiver definida.
     """
-    if not OPENROUTER_API_KEY:
+    selected_api_key = api_key or next((key for key in OPENROUTER_API_KEYS if key), "")
+    if not selected_api_key:
         raise RuntimeError(
-            "OPENROUTER_API_KEY não definida. Defina no .env ou no ambiente."
+            "Nenhuma chave OpenRouter definida. Configure OPENROUTER_API_KEY_1, "
+            "OPENROUTER_API_KEY_2 ou OPENROUTER_API_KEY_3 no .env."
         )
     selected_model = model_name or OPENROUTER_MODEL
     extra_kwargs = {}
@@ -137,7 +139,7 @@ def get_llm(
     return ChatOpenAI(
         model=selected_model,
         temperature=temperature if temperature is not None else LLM_TEMPERATURE,
-        api_key=OPENROUTER_API_KEY,
+        api_key=selected_api_key,
         base_url=OPENROUTER_BASE_URL,
         default_headers={
             "HTTP-Referer": OPENROUTER_SITE_URL,

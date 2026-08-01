@@ -355,6 +355,7 @@ def answer_question(
     question: str,
     use_rag: bool = True,
     model_name: str | None = None,
+    api_key: str | None = None,
 ) -> dict:
     """Gera resposta e retorna metadados do modelo efetivamente usado."""
     docs = retrieve_documents(question) if use_rag else []
@@ -376,7 +377,7 @@ def answer_question(
             "question": question,
         }
     )
-    message = get_llm(model_name=selected_model).invoke(prompt_value)
+    message = get_llm(model_name=selected_model, api_key=api_key).invoke(prompt_value)
     metadata = message.response_metadata or {}
     answer = (message.content or "").strip()
     if not answer:
