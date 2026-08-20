@@ -5,6 +5,10 @@ do Consumidor usando RAG, com respostas fundamentadas e rastreáveis por artigo.
 
 ![Arquitetura atualizada](arquitetura-openrouter.svg)
 
+> **Mapeamento do dado:** [`docs/MAPEAMENTO-DADOS.md`](docs/MAPEAMENTO-DADOS.md) —
+> origem do dado, embedding, armazenamento no pgvector e leitura na interação,
+> com três diagramas de fluxo.
+
 ## O que o projeto entrega
 
 - RAG sobre o CDC oficial do Planalto.
@@ -15,6 +19,8 @@ do Consumidor usando RAG, com respostas fundamentadas e rastreáveis por artigo.
 - Busca vetorial em PostgreSQL + pgvector.
 - Geração via OpenRouter, usando modelo gratuito compatível com a API OpenAI.
 - Seleção dinâmica de modelos gratuitos na interface para reduzir risco na apresentação.
+- Modelos pagos de baixo custo (OpenAI GPT-4o-mini e Google Gemini 2.5 Flash Lite) também aparecem na lista para validar a qualidade contra os modelos gratuitos (requer créditos no OpenRouter).
+- Avaliação automática de qualidade com uma LLM avaliadora, atribuindo nota de 0 a 5 para RAG e baseline.
 - Interface Streamlit simples, com modo RAG e baseline sem recuperação.
 - Conjunto-ouro com 40 perguntas para avaliação do TCC.
 - Métricas: taxa de alucinação, precisão de citação, recusa correta e suporte a RAGAS.
@@ -33,7 +39,12 @@ O restante da proposta foi mantido: LangChain, Docling, Sentence Transformers,
 PostgreSQL + pgvector, Streamlit, baseline comparativo e avaliação. Para uma
 avaliação acadêmica mais controlada, mantenha o mesmo modelo fixo no `.env`.
 No dia da demonstração, a interface também permite escolher outro modelo gratuito
-caso o modelo principal esteja indisponível.
+caso o modelo principal esteja indisponível. Para validação de qualidade, a lista
+de modelos inclui também dois modelos pagos baratos: `openai/gpt-4o-mini` (cerca
+de US$ 0,15 por 1M tokens de entrada e US$ 0,60 por 1M tokens de saída) e
+`google/gemini-2.5-flash-lite` (cerca de US$ 0,10 por 1M tokens de entrada e
+US$ 0,40 por 1M tokens de saída). Eles só geram custo se houver créditos na
+conta do OpenRouter, e os demais modelos da lista continuam gratuitos.
 
 ## Enriquecimento jurídico
 
@@ -46,6 +57,22 @@ Na resposta, o sistema separa:
 - **Fundamento legal:** artigos do CDC.
 - **Contexto historico:** origem constitucional, Lei 8.078/1990 e vigencia.
 - **Jurisprudência relacionada:** súmulas do STJ, quando houver pertinência.
+
+## Avaliação de qualidade com IA
+
+No modo **Comparar RAG x Baseline**, a interface permite ativar uma terceira
+chamada para uma LLM avaliadora. Essa camada recebe:
+
+- pergunta do usuário;
+- resposta gerada com RAG;
+- resposta baseline sem recuperação;
+- trechos do CDC, histórico e STJ recuperados pelo RAG.
+
+O avaliador retorna uma nota de **0 a 5** para cada resposta, informa qual foi
+melhor e apresenta uma justificativa curta. Os critérios usados são: fidelidade
+ao contexto recuperado, correção dos artigos citados, completude, clareza e risco
+de alucinação. O modelo recomendado para essa avaliação é `openai/gpt-4o-mini`,
+por ser barato e estável no OpenRouter.
 
 ## Como subir
 

@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1120" viewBox="0 0 1800 1120" role="img" aria-labelledby="title desc">
+  <title id="title">Caminho do dado no projeto RAG CDC</title>
+  <desc id="desc">Diagrama técnico mostrando origem dos dados, ingestão, embeddings, armazenamento vetorial, recuperação e geração de resposta no chatbot RAG do Código de Defesa do Consumidor.</desc>
+  <defs>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { font: 800 46px Arial, Helvetica, sans-serif; fill: #0f172a; }
+      .subtitle { font: 400 24px Arial, Helvetica, sans-serif; fill: #475569; }
+      .section { font: 800 24px Arial, Helvetica, sans-serif; fill: #0f172a; }
+      .label { font: 800 22px Arial, Helvetica, sans-serif; fill: #0f172a; }
+      .text { font: 400 18px Arial, Helvetica, sans-serif; fill: #334155; }
+      .small { font: 400 15px Arial, Helvetica, sans-serif; fill: #475569; }
+      .mono { font: 700 15px Consolas, "Courier New", monospace; fill: #0f766e; }
+      .card { fill: #ffffff; stroke: #cbd5e1; stroke-width: 2; }
+      .source { fill: #eff6ff; stroke: #60a5fa; }
+      .process { fill: #f0fdfa; stroke: #2dd4bf; }
+      .storage { fill: #f5f3ff; stroke: #a78bfa; }
+      .app { fill: #fff7ed; stroke: #fb923c; }
+      .answer { fill: #ecfdf5; stroke: #22c55e; }
+      .baseline { fill: #fef2f2; stroke: #f87171; }
+      .pill { fill: #e2e8f0; stroke: #cbd5e1; }
+      .arrow { stroke: #64748b; stroke-width: 4; fill: none; marker-end: url(#arrowHead); }
+      .arrow-soft { stroke: #94a3b8; stroke-width: 3; stroke-dasharray: 8 8; fill: none; marker-end: url(#arrowHeadSoft); }
+      .lane { fill: none; stroke: #e2e8f0; stroke-width: 2; }
+    </style>
+    <marker id="arrowHead" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrowHeadSoft" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#94a3b8"/>
+    </marker>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+
+  <rect class="bg" width="1800" height="1120"/>
+
+  <text x="80" y="80" class="title">Caminho do dado — POC RAG CDC</text>
+  <text x="80" y="118" class="subtitle">Da fonte oficial e corpora curados até a resposta fundamentada no chatbot</text>
+
+  <rect x="80" y="155" width="1640" height="875" rx="28" class="lane"/>
+
+  <text x="110" y="205" class="section">1. Origem dos dados</text>
+  <g filter="url(#shadow)">
+    <rect x="110" y="230" width="430" height="155" rx="20" class="card source"/>
+    <text x="135" y="270" class="label">CDC oficial — Planalto</text>
+    <text x="135" y="305" class="text">Lei nº 8.078/1990 compilada</text>
+    <text x="135" y="335" class="small">Fonte principal do conhecimento legal</text>
+    <text x="135" y="363" class="mono">planalto.gov.br/.../l8078compilado.htm</text>
+
+    <rect x="110" y="410" width="430" height="155" rx="20" class="card source"/>
+    <text x="135" y="450" class="label">Contexto histórico</text>
+    <text x="135" y="485" class="text">CF/88, ADCT art. 48, publicação</text>
+    <text x="135" y="515" class="text">e vigência do CDC</text>
+    <text x="135" y="543" class="mono">corpus/historico_cdc.md</text>
+
+    <rect x="110" y="590" width="430" height="155" rx="20" class="card source"/>
+    <text x="135" y="630" class="label">Jurisprudência STJ</text>
+    <text x="135" y="665" class="text">Súmulas selecionadas de consumo</text>
+    <text x="135" y="695" class="small">297, 479, 532, 543, 548, 563, 608</text>
+    <text x="135" y="723" class="mono">corpus/stj_sumulas_consumidor.md</text>
+  </g>
+
+  <path class="arrow" d="M560 487 C610 487, 620 487, 670 487"/>
+
+  <text x="690" y="205" class="section">2. Ingestão, limpeza e segmentação</text>
+  <g filter="url(#shadow)">
+    <rect x="690" y="230" width="430" height="180" rx="20" class="card process"/>
+    <text x="715" y="270" class="label">Ingestão Python</text>
+    <text x="715" y="305" class="text">Baixa o CDC, remove HTML inútil</text>
+    <text x="715" y="335" class="text">e salva o texto limpo localmente</text>
+    <text x="715" y="367" class="mono">src/ingestion.py</text>
+
+    <rect x="690" y="445" width="430" height="205" rx="20" class="card process"/>
+    <text x="715" y="485" class="label">Chunks de conhecimento</text>
+    <text x="715" y="520" class="text">CDC: 1 artigo ≈ 1 chunk</text>
+    <text x="715" y="550" class="text">Histórico: 1 nota ≈ 1 chunk</text>
+    <text x="715" y="580" class="text">STJ: 1 súmula ≈ 1 chunk</text>
+    <text x="715" y="615" class="small">Total local aproximado: 142 blocos</text>
+  </g>
+
+  <path class="arrow" d="M1140 487 C1190 487, 1200 487, 1250 487"/>
+
+  <text x="1270" y="205" class="section">3. Embeddings e banco vetorial</text>
+  <g filter="url(#shadow)">
+    <rect x="1270" y="230" width="410" height="185" rx="20" class="card storage"/>
+    <text x="1295" y="270" class="label">Embeddings locais</text>
+    <text x="1295" y="305" class="text">Sentence Transformers</text>
+    <text x="1295" y="335" class="text">paraphrase-multilingual-MiniLM-L12-v2</text>
+    <text x="1295" y="367" class="mono">384 dimensões • CPU</text>
+
+    <rect x="1270" y="450" width="410" height="235" rx="20" class="card storage"/>
+    <text x="1295" y="490" class="label">PostgreSQL + pgvector</text>
+    <text x="1295" y="525" class="text">Armazena texto + vetor + metadados</text>
+    <text x="1295" y="560" class="mono">cdc_chunks</text>
+    <text x="1295" y="590" class="mono">cdc_historico</text>
+    <text x="1295" y="620" class="mono">stj_jurisprudencia</text>
+    <text x="1295" y="655" class="small">Persistência no volume Docker pgdata</text>
+  </g>
+
+  <path class="arrow" d="M1475 700 C1475 760, 1225 785, 1035 785"/>
+
+  <text x="110" y="815" class="section">4. Pergunta do usuário e resposta</text>
+  <g filter="url(#shadow)">
+    <rect x="110" y="845" width="285" height="130" rx="20" class="card app"/>
+    <text x="135" y="885" class="label">Interface Web</text>
+    <text x="135" y="920" class="text">Usuário pergunta</text>
+    <text x="135" y="948" class="mono">Streamlit • src/app.py</text>
+
+    <rect x="445" y="845" width="330" height="130" rx="20" class="card app"/>
+    <text x="470" y="885" class="label">Recuperação híbrida</text>
+    <text x="470" y="920" class="text">Busca vetorial + busca lexical</text>
+    <text x="470" y="948" class="small">expansão, deduplicação e rerank</text>
+
+    <rect x="825" y="845" width="315" height="130" rx="20" class="card app"/>
+    <text x="850" y="885" class="label">Contexto para LLM</text>
+    <text x="850" y="920" class="text">CDC + histórico + STJ</text>
+    <text x="850" y="948" class="mono">LangChain prompt</text>
+
+    <rect x="1190" y="845" width="250" height="130" rx="20" class="card app"/>
+    <text x="1215" y="885" class="label">OpenRouter</text>
+    <text x="1215" y="920" class="text">Modelo e chave</text>
+    <text x="1215" y="948" class="small">selecionáveis na tela</text>
+
+    <rect x="1490" y="845" width="190" height="130" rx="20" class="card answer"/>
+    <text x="1515" y="885" class="label">Resposta</text>
+    <text x="1515" y="920" class="text">Fundamento</text>
+    <text x="1515" y="948" class="text">+ fontes</text>
+  </g>
+
+  <path class="arrow" d="M395 910 L430 910"/>
+  <path class="arrow" d="M775 910 L810 910"/>
+  <path class="arrow" d="M1140 910 L1175 910"/>
+  <path class="arrow" d="M1440 910 L1475 910"/>
+
+  <g>
+    <rect x="110" y="1028" width="490" height="52" rx="26" class="pill"/>
+    <text x="135" y="1061" class="small">Docker Compose: Streamlit + PostgreSQL/pgvector + volumes.</text>
+
+    <rect x="635" y="1028" width="500" height="52" rx="26" class="pill"/>
+    <text x="660" y="1061" class="small">RAG: usa trechos recuperados; se faltar dado no corpus, recusa.</text>
+
+    <rect x="1170" y="1028" width="510" height="52" rx="26" class="pill baseline"/>
+    <text x="1195" y="1061" class="small">Baseline: mesma LLM sem recuperação, só para comparação.</text>
+  </g>
+
+  <path class="arrow-soft" d="M610 845 C610 760, 1280 760, 1475 700"/>
+</svg>

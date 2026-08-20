@@ -1,0 +1,174 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1700" height="1050" viewBox="0 0 1700 1050" role="img" aria-labelledby="title desc">
+  <title id="title">Arquitetura técnica da POC RAG CDC</title>
+  <desc id="desc">Arquitetura simplificada do chatbot RAG do Código de Defesa do Consumidor, mostrando fontes, ingestão, embeddings, banco vetorial, interface, recuperação e OpenRouter.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#243b53"/>
+    </marker>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { font: 800 42px Arial, Helvetica, sans-serif; fill: #0f172a; }
+      .subtitle { font: 400 23px Arial, Helvetica, sans-serif; fill: #475569; }
+      .section { font: 800 22px Arial, Helvetica, sans-serif; fill: #0f172a; }
+      .box { fill: #ffffff; stroke: #9fb3c8; stroke-width: 2; }
+      .blue { fill: #eff6ff; stroke: #60a5fa; }
+      .green { fill: #ecfdf5; stroke: #34d399; }
+      .orange { fill: #fff7ed; stroke: #fb923c; }
+      .purple { fill: #f5f3ff; stroke: #a78bfa; }
+      .yellow { fill: #fffbeb; stroke: #f59e0b; }
+      .red { fill: #fff1f2; stroke: #fb7185; }
+      .label { font: 800 21px Arial, Helvetica, sans-serif; fill: #0f172a; }
+      .text { font: 400 17px Arial, Helvetica, sans-serif; fill: #334155; }
+      .small { font: 400 15px Arial, Helvetica, sans-serif; fill: #475569; }
+      .mono { font: 700 14px Consolas, "Courier New", monospace; fill: #0f766e; }
+      .icon { font: 400 42px "Segoe UI Emoji", "Apple Color Emoji", Arial, sans-serif; fill: #0f172a; }
+      .arrow { stroke: #243b53; stroke-width: 3.5; fill: none; marker-end: url(#arrow); }
+      .arrow-dashed { stroke: #64748b; stroke-width: 3; fill: none; marker-end: url(#arrow); stroke-dasharray: 8 8; }
+      .area { fill: none; stroke: #cbd5e1; stroke-width: 2; stroke-dasharray: 9 7; }
+      .pill { fill: #e2e8f0; stroke: #cbd5e1; stroke-width: 1.5; }
+      .pill-text { font: 700 14px Arial, Helvetica, sans-serif; fill: #334155; }
+      .benefit { font: 400 16px Arial, Helvetica, sans-serif; fill: #14532d; }
+      .check { fill: #22c55e; }
+      .shadow { filter: url(#shadow); }
+    </style>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#0f172a" flood-opacity="0.10"/>
+    </filter>
+  </defs>
+
+  <rect width="1700" height="1050" class="bg"/>
+
+  <text x="850" y="58" text-anchor="middle" class="title">Chatbot RAG — Código de Defesa do Consumidor</text>
+  <text x="850" y="94" text-anchor="middle" class="subtitle">Arquitetura simplificada com caminho do dado e tecnologias reais da POC</text>
+
+  <!-- fluxo principal de uso -->
+  <g class="shadow">
+    <rect x="55" y="145" width="178" height="165" rx="18" class="box blue"/>
+    <text x="144" y="182" text-anchor="middle" class="label">Usuário</text>
+    <text x="144" y="234" text-anchor="middle" class="icon">👤</text>
+    <text x="144" y="270" text-anchor="middle" class="text">faz pergunta</text>
+    <text x="144" y="294" text-anchor="middle" class="small">sobre o CDC</text>
+
+    <rect x="300" y="145" width="220" height="165" rx="18" class="box blue"/>
+    <text x="410" y="182" text-anchor="middle" class="label">Interface Web</text>
+    <text x="410" y="224" text-anchor="middle" class="icon">🧭</text>
+    <text x="410" y="262" text-anchor="middle" class="text">Streamlit</text>
+    <text x="410" y="288" text-anchor="middle" class="small">RAG x Baseline</text>
+
+    <rect x="595" y="125" width="360" height="205" rx="20" class="box green"/>
+    <text x="775" y="165" text-anchor="middle" class="label">Aplicação Python + LangChain</text>
+    <text x="775" y="207" text-anchor="middle" class="icon">⚙️</text>
+    <text x="775" y="247" text-anchor="middle" class="text">orquestra prompt, retrieval</text>
+    <text x="775" y="273" text-anchor="middle" class="text">e montagem do contexto</text>
+    <text x="775" y="302" text-anchor="middle" class="mono">src/app.py · src/rag_chain.py</text>
+
+    <rect x="1050" y="145" width="260" height="165" rx="18" class="box purple"/>
+    <text x="1180" y="182" text-anchor="middle" class="label">OpenRouter</text>
+    <text x="1180" y="225" text-anchor="middle" class="icon">🧠</text>
+    <text x="1180" y="262" text-anchor="middle" class="text">LLM selecionável</text>
+    <text x="1180" y="288" text-anchor="middle" class="small">modelo + chave na UI</text>
+
+    <rect x="1390" y="145" width="220" height="165" rx="18" class="box blue"/>
+    <text x="1500" y="182" text-anchor="middle" class="label">Resposta</text>
+    <text x="1500" y="225" text-anchor="middle" class="icon">💬</text>
+    <text x="1500" y="262" text-anchor="middle" class="text">fundamentada</text>
+    <text x="1500" y="288" text-anchor="middle" class="small">com trechos e fontes</text>
+  </g>
+
+  <path class="arrow" d="M233 228 H292"/>
+  <path class="arrow" d="M520 228 H587"/>
+  <path class="arrow" d="M955 228 H1042"/>
+  <path class="arrow" d="M1310 228 H1382"/>
+
+  <!-- processamento e armazenamento -->
+  <rect x="55" y="380" width="1555" height="330" rx="24" class="area"/>
+  <text x="850" y="420" text-anchor="middle" class="section">Processamento, embeddings e armazenamento vetorial</text>
+
+  <g class="shadow">
+    <rect x="90" y="465" width="215" height="165" rx="18" class="box yellow"/>
+    <text x="198" y="502" text-anchor="middle" class="label">Fontes de dados</text>
+    <text x="198" y="541" text-anchor="middle" class="text">Planalto + corpora</text>
+    <text x="198" y="568" text-anchor="middle" class="small">CDC, histórico e STJ</text>
+    <text x="198" y="598" text-anchor="middle" class="mono">data/ · corpus/</text>
+
+    <rect x="365" y="465" width="220" height="165" rx="18" class="box orange"/>
+    <text x="475" y="502" text-anchor="middle" class="label">Ingestão</text>
+    <text x="475" y="541" text-anchor="middle" class="text">requests + BeautifulSoup</text>
+    <text x="475" y="568" text-anchor="middle" class="small">limpeza do HTML oficial</text>
+    <text x="475" y="598" text-anchor="middle" class="mono">src/ingestion.py</text>
+
+    <rect x="645" y="465" width="210" height="165" rx="18" class="box orange"/>
+    <text x="750" y="502" text-anchor="middle" class="label">Chunks</text>
+    <text x="750" y="541" text-anchor="middle" class="text">1 artigo ≈ 1 bloco</text>
+    <text x="750" y="568" text-anchor="middle" class="small">+ notas históricas</text>
+    <text x="750" y="598" text-anchor="middle" class="small">+ súmulas do STJ</text>
+
+    <rect x="915" y="465" width="255" height="165" rx="18" class="box green"/>
+    <text x="1043" y="502" text-anchor="middle" class="label">Embeddings</text>
+    <text x="1043" y="541" text-anchor="middle" class="text">SentenceTransformers</text>
+    <text x="1043" y="568" text-anchor="middle" class="small">MiniLM multilíngue</text>
+    <text x="1043" y="598" text-anchor="middle" class="mono">384 dimensões</text>
+
+    <rect x="1230" y="465" width="250" height="165" rx="18" class="box purple"/>
+    <text x="1355" y="502" text-anchor="middle" class="label">Banco vetorial</text>
+    <text x="1355" y="541" text-anchor="middle" class="text">PostgreSQL + pgvector</text>
+    <text x="1355" y="568" text-anchor="middle" class="small">texto + vetor + metadados</text>
+    <text x="1355" y="598" text-anchor="middle" class="mono">cdc_chunks · stj · histórico</text>
+  </g>
+
+  <path class="arrow" d="M305 548 H357"/>
+  <path class="arrow" d="M585 548 H637"/>
+  <path class="arrow" d="M855 548 H907"/>
+  <path class="arrow" d="M1170 548 H1222"/>
+
+  <!-- recuperação -->
+  <path class="arrow-dashed" d="M1355 465 C1355 365 850 375 805 335"/>
+
+  <!-- modos de execução -->
+  <rect x="610" y="348" width="155" height="30" rx="15" class="pill"/>
+  <text x="688" y="368" text-anchor="middle" class="pill-text">RAG consulta vetores</text>
+  <rect x="782" y="348" width="175" height="30" rx="15" class="pill"/>
+  <text x="870" y="368" text-anchor="middle" class="pill-text">Baseline pula retrieval</text>
+
+  <!-- ferramentas -->
+  <rect x="55" y="750" width="1555" height="150" rx="18" class="box"/>
+  <text x="82" y="785" class="section">Tecnologias utilizadas</text>
+  <g>
+    <rect x="90" y="812" width="160" height="58" rx="16" class="pill"/>
+    <text x="170" y="848" text-anchor="middle" class="pill-text">Docker Compose</text>
+
+    <rect x="275" y="812" width="130" height="58" rx="16" class="pill"/>
+    <text x="340" y="848" text-anchor="middle" class="pill-text">Streamlit</text>
+
+    <rect x="430" y="812" width="125" height="58" rx="16" class="pill"/>
+    <text x="493" y="848" text-anchor="middle" class="pill-text">Python</text>
+
+    <rect x="580" y="812" width="140" height="58" rx="16" class="pill"/>
+    <text x="650" y="848" text-anchor="middle" class="pill-text">LangChain</text>
+
+    <rect x="745" y="812" width="220" height="58" rx="16" class="pill"/>
+    <text x="855" y="848" text-anchor="middle" class="pill-text">SentenceTransformers</text>
+
+    <rect x="990" y="812" width="205" height="58" rx="16" class="pill"/>
+    <text x="1093" y="848" text-anchor="middle" class="pill-text">PostgreSQL + pgvector</text>
+
+    <rect x="1220" y="812" width="140" height="58" rx="16" class="pill"/>
+    <text x="1290" y="848" text-anchor="middle" class="pill-text">OpenRouter</text>
+
+    <rect x="1385" y="812" width="185" height="58" rx="16" class="pill"/>
+    <text x="1478" y="848" text-anchor="middle" class="pill-text">requests + BS4</text>
+  </g>
+
+  <!-- benefícios -->
+  <rect x="150" y="930" width="1400" height="78" rx="18" class="box green"/>
+  <circle cx="185" cy="968" r="13" class="check"/>
+  <text x="210" y="974" class="benefit">dados oficiais e rastreáveis</text>
+  <circle cx="485" cy="968" r="13" class="check"/>
+  <text x="510" y="974" class="benefit">respostas com fundamento</text>
+  <circle cx="810" cy="968" r="13" class="check"/>
+  <text x="835" y="974" class="benefit">comparação RAG x baseline</text>
+  <circle cx="1150" cy="968" r="13" class="check"/>
+  <text x="1175" y="974" class="benefit">execução com um comando</text>
+  <circle cx="1440" cy="968" r="13" class="check"/>
+  <text x="1465" y="974" class="benefit">baixo custo</text>
+</svg>

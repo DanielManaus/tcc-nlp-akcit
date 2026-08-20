@@ -9,3 +9,4 @@ __pycache__/
 data/*.md
 data/*.pdf
 data/*.html
+.aider*

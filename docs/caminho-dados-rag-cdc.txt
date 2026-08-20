@@ -1,0 +1,173 @@
+CAMINHO DO DADO - POC RAG CDC
+Projeto: Chatbot RAG especialista no Código de Defesa do Consumidor do Brasil
+
+OBJETIVO DO PROJETO
+Construir uma prova de conceito (POC) de NLP/RAG capaz de responder perguntas sobre o Código de Defesa do Consumidor (CDC), usando fontes oficiais e corpora curados. A aplicação compara dois cenários:
+1. RAG: a resposta é gerada com trechos recuperados do corpus indexado.
+2. Baseline: a resposta é gerada apenas com o conhecimento interno do modelo, sem recuperação.
+
+1. ORIGEM DOS DADOS
+O projeto usa três bases principais:
+
+a) CDC oficial
+- Fonte: site oficial do Planalto.
+- URL: https://www.planalto.gov.br/ccivil_03/leis/l8078compilado.htm
+- Conteúdo: Lei nº 8.078/1990, o Código de Defesa do Consumidor compilado.
+- Uso no projeto: base legal principal do RAG.
+
+b) Contexto histórico do CDC
+- Arquivo local curado: corpus/historico_cdc.md
+- Conteúdo: origem constitucional da defesa do consumidor, Constituição Federal de 1988, ADCT art. 48, publicação da Lei nº 8.078/1990 e entrada em vigor em 11/03/1991.
+- Uso no projeto: enriquecer respostas sobre origem, vigência e contexto institucional do CDC.
+
+c) Jurisprudência complementar do STJ
+- Arquivo local curado: corpus/stj_sumulas_consumidor.md
+- Conteúdo: súmulas selecionadas do STJ relacionadas ao direito do consumidor, como Súmulas 297, 479, 532, 543, 548, 563 e 608.
+- Uso no projeto: enriquecer respostas com apoio jurisprudencial, mantendo o CDC como base legal principal.
+
+2. INGESTÃO E LIMPEZA
+O processo de ingestão está em src/ingestion.py.
+
+Fluxo:
+1. O sistema baixa o CDC do Planalto.
+2. O HTML é lido com requests e BeautifulSoup.
+3. Elementos desnecessários são removidos, como scripts, estilos, menus e rodapés.
+4. O texto limpo é salvo localmente em data/cdc.md.
+5. Os corpora locais de histórico e STJ são lidos a partir da pasta corpus/.
+
+3. SEGMENTAÇÃO DOS DOCUMENTOS
+Após a limpeza, o conteúdo é dividido em blocos menores chamados chunks.
+
+Estratégia usada:
+- CDC: segmentado por artigo. Em geral, 1 artigo do CDC vira 1 chunk.
+- Histórico: cada nota histórica vira 1 chunk.
+- STJ: cada súmula vira 1 chunk.
+
+Resultado aproximado do corpus local:
+- Cerca de 130 blocos do CDC.
+- 7 blocos de súmulas do STJ.
+- 5 blocos de contexto histórico.
+- Total aproximado: 142 blocos de conhecimento.
+
+Essa estratégia facilita a citação dos fundamentos, pois o sistema recupera trechos com metadados como artigo, tema e fonte.
+
+4. GERAÇÃO DOS EMBEDDINGS
+O embedding é a representação numérica do texto.
+
+Ferramenta usada:
+- Sentence Transformers.
+- Modelo: paraphrase-multilingual-MiniLM-L12-v2.
+- Dimensão: 384.
+- Execução: localmente dentro do container, em CPU.
+
+Como funciona:
+1. Cada chunk do CDC, histórico e STJ é enviado ao modelo de embedding.
+2. O modelo transforma o texto em um vetor numérico.
+3. Na hora da pergunta, a pergunta do usuário também é transformada em vetor pelo mesmo modelo.
+4. Isso permite comparar semanticamente a pergunta com os trechos do corpus.
+
+5. ARMAZENAMENTO VETORIAL
+Os embeddings são armazenados no PostgreSQL com a extensão pgvector.
+
+Ferramentas:
+- PostgreSQL 16.
+- pgvector.
+- LangChain PGVector.
+
+Coleções usadas:
+- cdc_chunks: artigos do CDC.
+- cdc_historico: notas históricas e institucionais.
+- stj_jurisprudencia: súmulas do STJ.
+
+O Docker Compose cria e sobe o banco, e os dados são persistidos no volume pgdata.
+
+6. CONSULTA DO USUÁRIO
+A interface web está em src/app.py e usa Streamlit.
+
+Fluxo quando o usuário pergunta:
+1. O usuário digita uma pergunta na tela.
+2. A aplicação identifica o modo escolhido: RAG, Baseline ou Comparação RAG x Baseline.
+3. Se estiver em modo RAG, a pergunta é enviada para a etapa de recuperação.
+4. Se estiver em modo Baseline, a pergunta vai direto para a LLM sem buscar trechos no banco.
+
+7. RECUPERAÇÃO NO RAG
+A recuperação está em src/rag_chain.py.
+
+O projeto usa busca híbrida:
+- Busca vetorial: compara o vetor da pergunta com os vetores salvos no pgvector.
+- Busca lexical: procura termos relevantes diretamente nos textos.
+- Expansão de consulta: melhora a pergunta com termos jurídicos relacionados.
+- Deduplicação e rerank: remove duplicidades e prioriza trechos mais relevantes.
+
+O sistema recupera, em média:
+- Top trechos do CDC.
+- Trechos de contexto histórico quando a pergunta pede origem, vigência ou contexto.
+- Súmulas do STJ quando a pergunta envolve jurisprudência ou casos práticos.
+
+8. GERAÇÃO DA RESPOSTA
+Depois da recuperação, o sistema monta um contexto com os trechos encontrados e envia para a LLM via OpenRouter.
+
+Ferramentas:
+- LangChain.
+- ChatOpenAI compatível com API OpenRouter.
+- OpenRouter para acessar o modelo de linguagem.
+
+O prompt orienta o modelo a:
+- Responder somente com base nos trechos recuperados no modo RAG.
+- Citar o fundamento, como "Fundamento: Art. 49".
+- Recusar quando a informação não estiver no corpus recuperado.
+- Usar baseline apenas para comparação experimental.
+
+9. RESPOSTA NA TELA
+A resposta volta para a interface Streamlit.
+
+A tela mostra:
+- Resposta final.
+- Fundamento legal.
+- Modelo OpenRouter usado.
+- Chave API selecionada de forma numerada.
+- Modo usado: RAG, Baseline ou Comparação.
+- Expansores com os trechos recuperados do CDC, histórico e STJ.
+
+10. AVALIAÇÃO DE QUALIDADE COM IA
+No modo de comparação, o sistema pode executar uma terceira chamada para uma LLM avaliadora.
+
+Entrada do avaliador:
+- pergunta do usuário;
+- resposta RAG;
+- resposta baseline;
+- trechos recuperados do CDC, histórico e STJ.
+
+Saída do avaliador:
+- nota do RAG de 0 a 5;
+- nota do baseline de 0 a 5;
+- indicação da melhor resposta;
+- justificativa curta;
+- pontos fortes e riscos de cada resposta.
+
+Critérios usados:
+- fidelidade ao contexto recuperado;
+- correção dos artigos citados;
+- completude;
+- clareza;
+- risco de alucinação.
+
+Modelo recomendado para o avaliador:
+- openai/gpt-4o-mini via OpenRouter.
+
+11. INFRAESTRUTURA
+O projeto foi preparado para rodar com apenas um comando:
+
+docker compose up
+
+Serviços principais:
+- app: aplicação Python/Streamlit.
+- postgres: banco PostgreSQL com pgvector.
+
+Volumes:
+- pgdata: persistência do banco vetorial.
+- data: armazenamento local do CDC baixado.
+- model_cache: cache do modelo de embedding.
+
+FRASE RESUMO PARA O SLIDE
+O projeto transforma textos oficiais e corpora curados sobre Direito do Consumidor em vetores pesquisáveis. Quando o usuário pergunta, o sistema recupera os trechos mais relevantes do CDC, histórico e STJ, envia esse contexto para uma LLM via OpenRouter e retorna uma resposta fundamentada, comparável com uma baseline sem recuperação. Em seguida, uma LLM avaliadora pode atribuir nota de 0 a 5 para as duas respostas e indicar qual apresentou melhor qualidade.
