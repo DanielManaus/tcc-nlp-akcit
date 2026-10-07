@@ -10,7 +10,6 @@ from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from src.config import OPENROUTER_MODEL
 from src.models import get_llm
 
 
@@ -53,17 +52,17 @@ def _format_context(rag_result: dict) -> str:
             _format_docs_for_judge(
                 rag_result.get("documents", []),
                 "Trechos legais recuperados do CDC",
-                limit=5,
+                limit=3,
             ),
             _format_docs_for_judge(
                 rag_result.get("history_documents", []),
                 "Contexto historico/institucional recuperado",
-                limit=3,
+                limit=2,
             ),
             _format_docs_for_judge(
                 rag_result.get("jurisprudence_documents", []),
                 "Jurisprudencia complementar recuperada",
-                limit=3,
+                limit=2,
             ),
         ]
     )
@@ -124,9 +123,6 @@ def evaluate_answers(
     """Compara duas respostas e retorna avaliação estruturada de 0 a 5."""
 
     selected_judge_model = judge_model or DEFAULT_JUDGE_MODEL
-    if selected_judge_model == OPENROUTER_MODEL:
-        selected_judge_model = DEFAULT_JUDGE_MODEL
-
     context = _format_context(rag_result)
     system = (
         "Voce e um avaliador academico de respostas juridicas em uma POC de NLP/RAG. "
@@ -142,9 +138,9 @@ def evaluate_answers(
         "Contexto recuperado pelo RAG, usado como base de referencia:\n"
         f"{context}\n\n"
         "Resposta RAG:\n"
-        f"{_clip(rag_result.get('answer', ''), 2600)}\n\n"
+        f"{_clip(rag_result.get('answer', ''), 1600)}\n\n"
         "Resposta baseline:\n"
-        f"{_clip(baseline_result.get('answer', ''), 2600)}\n\n"
+        f"{_clip(baseline_result.get('answer', ''), 1600)}\n\n"
         "Dê uma nota de 0 a 5 para cada resposta:\n"
         "- 5 = correta, fundamentada, clara, completa e sem alucinacao relevante;\n"
         "- 3 = parcialmente correta, mas incompleta ou com fundamento fraco;\n"
@@ -172,3 +168,85 @@ def evaluate_answers(
     )
     normalized["token_usage"] = metadata.get("token_usage")
     return normalized
+
+
+def _average_score(results: list[dict], key: str) -> float:
+    scores = [result[key]["score"] for result in results if key in result]
+    if not scores:
+        return 0.0
+    return round(sum(scores) / len(scores), 1)
+
+
+def _winner_from_scores(rag_score: float, baseline_score: float) -> str:
+    if abs(rag_score - baseline_score) < 0.1:
+        return "Empate"
+    return "RAG" if rag_score > baseline_score else "Baseline"
+
+
+def evaluate_answers_with_judges(
+    question: str,
+    rag_result: dict,
+    baseline_result: dict,
+    judge_models: list[str],
+    api_key: str | None = None,
+    target_successes: int = 3,
+) -> dict:
+    """Executa 3 avaliações independentes e retorna a média das notas."""
+
+    results = []
+    failures = []
+    for judge_model in judge_models:
+        if len(results) >= target_successes:
+            break
+        try:
+            results.append(
+                evaluate_answers(
+                    question=question,
+                    rag_result=rag_result,
+                    baseline_result=baseline_result,
+                    judge_model=judge_model,
+                    api_key=api_key,
+                )
+            )
+        except Exception as exc:
+            failures.append({"judge_model": judge_model, "error": str(exc)})
+
+    if not results:
+        raise RuntimeError(
+            "Nenhum avaliador conseguiu concluir a avaliação de qualidade."
+        )
+
+    rag_score = _average_score(results, "rag")
+    baseline_score = _average_score(results, "baseline")
+    winner = _winner_from_scores(rag_score, baseline_score)
+    summaries = [result.get("summary", "") for result in results if result.get("summary")]
+    summary = (
+        f"Média de {len(results)} avaliador(es): RAG {rag_score}/5 vs "
+        f"Baseline {baseline_score}/5. Melhor resultado: {winner}."
+    )
+    if summaries:
+        summary += f" {summaries[0]}"
+
+    return {
+        "rag": {
+            "score": rag_score,
+            "justification": (
+                f"Nota média calculada a partir de {len(results)} avaliações independentes."
+            ),
+            "strengths": [],
+            "risks": [],
+        },
+        "baseline": {
+            "score": baseline_score,
+            "justification": (
+                f"Nota média calculada a partir de {len(results)} avaliações independentes."
+            ),
+            "strengths": [],
+            "risks": [],
+        },
+        "winner": winner,
+        "summary": summary,
+        "judge_models": judge_models,
+        "judge_results": results,
+        "failed_judges": failures,
+    }

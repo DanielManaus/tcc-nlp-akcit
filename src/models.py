@@ -36,33 +36,6 @@ CURATED_FREE_MODELS = [
         "context_length": 262144,
         "note": "Rapido e eficiente em tokens.",
     },
-    {
-        "id": "google/gemma-4-31b-it:free",
-        "name": "Google: Gemma 4 31B (free)",
-        "display_name": "Gemma 4 31B",
-        "parameters": "31B",
-        "tier": "Grátis",
-        "context_length": 262144,
-        "note": "Bom modelo geral de instrucao.",
-    },
-    {
-        "id": "nvidia/nemotron-3-super-120b-a12b:free",
-        "name": "NVIDIA: Nemotron 3 Super (free)",
-        "display_name": "Nemotron 3 Super",
-        "parameters": "120B total / 12B ativos",
-        "tier": "Grátis",
-        "context_length": 262144,
-        "note": "Alternativa forte para respostas mais complexas.",
-    },
-    {
-        "id": "google/gemma-4-26b-a4b-it:free",
-        "name": "Google: Gemma 4 26B A4B (free)",
-        "display_name": "Gemma 4 26B",
-        "parameters": "25B total / 3.8B ativos",
-        "tier": "Grátis",
-        "context_length": 262144,
-        "note": "Fallback geral.",
-    },
 ]
 
 CURATED_PAID_MODELS = [
@@ -88,6 +61,30 @@ CURATED_PAID_MODELS = [
         "note": (
             "Pago barato e popular: US$ 0,10/1M entrada e US$ 0,40/1M saída "
             "no OpenRouter. Bom fallback para demo."
+        ),
+    },
+    {
+        "id": "deepseek/deepseek-v4-flash",
+        "name": "DeepSeek: DeepSeek V4 Flash",
+        "display_name": "DeepSeek V4 Flash",
+        "parameters": "não divulgado",
+        "tier": "Pago",
+        "context_length": 1048576,
+        "note": (
+            "Pago barato: US$ 0,06/1M entrada e US$ 0,11/1M saída "
+            "no OpenRouter. Bom avaliador econômico."
+        ),
+    },
+    {
+        "id": "amazon/nova-lite-v1",
+        "name": "Amazon: Nova Lite 1.0",
+        "display_name": "Amazon Nova Lite",
+        "parameters": "não divulgado",
+        "tier": "Pago",
+        "context_length": 300000,
+        "note": (
+            "Pago barato: US$ 0,06/1M entrada e US$ 0,24/1M saída "
+            "no OpenRouter. Alternativa estável para avaliação."
         ),
     },
 ]

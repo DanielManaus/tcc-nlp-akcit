@@ -8,8 +8,14 @@ from src.config import (
     openrouter_api_key_options,
 )
 from src.models import list_free_models
-from src.quality_judge import DEFAULT_JUDGE_MODEL, evaluate_answers
+from src.quality_judge import evaluate_answers_with_judges
 from src.rag_chain import answer_question
+from src.history_store import (
+    history_stats,
+    list_interactions,
+    save_interaction,
+    update_human_review,
+)
 
 
 st.set_page_config(
@@ -22,6 +28,13 @@ st.title("Chatbot RAG — Código de Defesa do Consumidor")
 st.caption(
     "Projeto de TCC desenvolvido pela equipe · RAG aplicado ao Código de Defesa do Consumidor"
 )
+
+QUALITY_JUDGE_PRIORITY = [
+    "openai/gpt-4o-mini",
+    "google/gemini-2.5-flash-lite",
+    "deepseek/deepseek-v4-flash",
+    "amazon/nova-lite-v1",
+]
 
 if not has_llm_credentials():
     st.error(
@@ -144,15 +157,15 @@ def run_quality_evaluation(
     question: str,
     rag_result: dict,
     baseline_result: dict,
-    judge_model: str,
+    judge_models: list[str],
     api_key: str,
 ) -> dict:
     try:
-        return evaluate_answers(
+        return evaluate_answers_with_judges(
             question=question,
             rag_result=rag_result,
             baseline_result=baseline_result,
-            judge_model=judge_model,
+            judge_models=judge_models,
             api_key=api_key,
         )
     except Exception as exc:
@@ -163,11 +176,6 @@ def run_quality_evaluation(
                 f"Detalhe técnico: `{str(exc)}`"
             ),
         }
-
-
-def _render_list(items: list[str]) -> None:
-    for item in items:
-        st.markdown(f"- {item}")
 
 
 def render_quality_evaluation(evaluation: dict) -> None:
@@ -192,29 +200,23 @@ def render_quality_evaluation(evaluation: dict) -> None:
     if evaluation.get("summary"):
         st.info(evaluation["summary"])
 
-    with st.expander("Detalhes da avaliação"):
-        st.markdown("**RAG**")
-        st.caption(rag_eval.get("justification", "Sem justificativa."))
-        if rag_eval.get("strengths"):
-            st.markdown("Pontos fortes:")
-            _render_list(rag_eval["strengths"])
-        if rag_eval.get("risks"):
-            st.markdown("Riscos/limitações:")
-            _render_list(rag_eval["risks"])
-
-        st.markdown("**Baseline**")
-        st.caption(baseline_eval.get("justification", "Sem justificativa."))
-        if baseline_eval.get("strengths"):
-            st.markdown("Pontos fortes:")
-            _render_list(baseline_eval["strengths"])
-        if baseline_eval.get("risks"):
-            st.markdown("Riscos/limitações:")
-            _render_list(baseline_eval["risks"])
-
-    st.caption(
-        "Avaliador: "
-        f"`{evaluation.get('judge_model_display') or evaluation.get('effective_judge_model') or evaluation.get('judge_model')}`"
-    )
+    with st.expander("Notas individuais dos avaliadores"):
+        rows = []
+        for result in evaluation.get("judge_results", []):
+            rows.append(
+                {
+                    "Avaliador": result.get("judge_model_display")
+                    or result.get("effective_judge_model")
+                    or result.get("judge_model"),
+                    "RAG": result.get("rag", {}).get("score"),
+                    "Baseline": result.get("baseline", {}).get("score"),
+                    "Melhor": result.get("winner"),
+                }
+            )
+        if rows:
+            st.table(rows)
+        for failure in evaluation.get("failed_judges", []):
+            st.warning(f"Avaliador indisponível: `{failure['judge_model']}`")
 
 
 def format_quality_markdown(evaluation: dict) -> str:
@@ -223,15 +225,233 @@ def format_quality_markdown(evaluation: dict) -> str:
 
     rag_eval = evaluation.get("rag", {})
     baseline_eval = evaluation.get("baseline", {})
+    judge_names = evaluation.get("judge_models_display") or []
+    judge_line = (
+        f"- Avaliadores: {', '.join(judge_names)}\n" if judge_names else ""
+    )
     return (
         "### Avaliação de qualidade\n"
         f"- Nota RAG: {rag_eval.get('score', 0)}/5\n"
         f"- Nota Baseline: {baseline_eval.get('score', 0)}/5\n"
         f"- Melhor resposta: {evaluation.get('winner', 'Indefinido')}\n"
-        f"- Resumo: {evaluation.get('summary', '')}\n"
-        f"- Avaliador: "
-        f"{evaluation.get('judge_model_display') or evaluation.get('effective_judge_model') or evaluation.get('judge_model')}"
+        f"{judge_line}"
+        f"- Resumo: {evaluation.get('summary', '')}"
     )
+
+
+def select_quality_judges(selected_model: str, models: list[dict]) -> list[str]:
+    paid_model_ids = {
+        model["id"]
+        for model in models
+        if (model.get("tier") or "").lower() == "pago"
+    }
+    ordered_paid_models = [
+        model_id for model_id in QUALITY_JUDGE_PRIORITY if model_id in paid_model_ids
+    ]
+    ordered_paid_models.extend(
+        model_id
+        for model_id in paid_model_ids
+        if model_id not in ordered_paid_models
+    )
+    candidates = [
+        model_id for model_id in ordered_paid_models if model_id != selected_model
+    ]
+    if len(candidates) < 3:
+        candidates = ordered_paid_models
+    return candidates[:3]
+
+
+def score_label(value) -> str:
+    if value is None:
+        return "—"
+    return f"{float(value):.1f}/5"
+
+
+def created_at_label(value) -> str:
+    if not value:
+        return ""
+    try:
+        return value.strftime("%d/%m/%Y %H:%M")
+    except AttributeError:
+        return str(value)
+
+
+def save_interaction_safely(**kwargs) -> int | None:
+    try:
+        return save_interaction(**kwargs)
+    except Exception as exc:
+        st.warning(
+            "A resposta foi gerada, mas não consegui salvar no histórico. "
+            f"Detalhe técnico: `{exc}`"
+        )
+        return None
+
+
+def render_history_tab() -> None:
+    st.subheader("Histórico e avaliação humana")
+    st.caption(
+        "Registros persistidos no PostgreSQL da POC. A nota humana permite "
+        "comparar a avaliação automática com a percepção da equipe/orientador."
+    )
+
+    try:
+        stats = history_stats()
+    except Exception as exc:
+        st.warning(f"Não consegui carregar o histórico: `{exc}`")
+        return
+
+    total, avg_human, avg_ai_rag, pending = st.columns(4)
+    total.metric("Perguntas salvas", int(stats.get("total") or 0))
+    avg_human.metric("Média humana", score_label(stats.get("avg_human")))
+    avg_ai_rag.metric("Média RAG automática", score_label(stats.get("avg_ai_rag")))
+    pending.metric("Pendentes de nota", int(stats.get("pending_human") or 0))
+
+    search_col, pending_col, limit_col = st.columns([2, 1, 1])
+    with search_col:
+        search = st.text_input(
+            "Buscar no histórico",
+            placeholder="Ex.: arrependimento, produto com defeito, banco...",
+            help="Quando possível, a busca usa o embedding da pergunta no pgvector.",
+        )
+    with pending_col:
+        only_pending = st.checkbox("Só pendentes", value=False)
+    with limit_col:
+        limit = st.selectbox("Quantidade", [10, 20, 30, 50], index=1)
+
+    try:
+        rows = list_interactions(
+            limit=limit,
+            search=search,
+            only_pending_human_review=only_pending,
+        )
+    except Exception as exc:
+        st.warning(f"Não consegui consultar o histórico: `{exc}`")
+        return
+
+    if not rows:
+        st.info("Nenhum registro encontrado para os filtros atuais.")
+        return
+
+    for row in rows:
+        human_badge = (
+            f"nota humana {score_label(row.get('human_score'))}"
+            if row.get("human_score") is not None
+            else "aguardando nota humana"
+        )
+        title = (
+            f"#{row['id']} · {created_at_label(row.get('created_at'))} · "
+            f"{row.get('mode')} · {human_badge}"
+        )
+        with st.expander(title):
+            st.markdown("**Pergunta**")
+            st.write(row.get("question", ""))
+
+            info_cols = st.columns(4)
+            info_cols[0].metric("Nota humana", score_label(row.get("human_score")))
+            info_cols[1].metric("Nota RAG", score_label(row.get("ai_rag_score")))
+            info_cols[2].metric(
+                "Nota Baseline",
+                score_label(row.get("ai_baseline_score")),
+            )
+            info_cols[3].metric("Melhor automática", row.get("ai_winner") or "—")
+
+            st.caption(
+                "Modelo: "
+                f"`{row.get('response_model_label') or row.get('response_model') or '—'}`"
+            )
+
+            if row.get("compare_mode"):
+                rag_tab, baseline_tab, quality_tab = st.tabs(
+                    ["Resposta RAG", "Resposta Baseline", "Avaliação automática"]
+                )
+                with rag_tab:
+                    st.markdown(row.get("rag_answer") or "Sem resposta RAG.")
+                with baseline_tab:
+                    st.markdown(
+                        row.get("baseline_answer") or "Sem resposta baseline."
+                    )
+                with quality_tab:
+                    quality = row.get("ai_quality") or {}
+                    if quality:
+                        st.info(quality.get("summary") or "Avaliação salva.")
+                        rows_quality = []
+                        for result in quality.get("judge_results", []):
+                            rows_quality.append(
+                                {
+                                    "Avaliador": result.get("judge_model_display")
+                                    or result.get("effective_judge_model")
+                                    or result.get("judge_model"),
+                                    "RAG": result.get("rag", {}).get("score"),
+                                    "Baseline": result.get("baseline", {}).get(
+                                        "score"
+                                    ),
+                                    "Melhor": result.get("winner"),
+                                }
+                            )
+                        if rows_quality:
+                            st.table(rows_quality)
+                    else:
+                        st.caption("Sem avaliação automática registrada.")
+            else:
+                st.markdown("**Resposta**")
+                st.markdown(
+                    row.get("single_answer")
+                    or row.get("rag_answer")
+                    or row.get("baseline_answer")
+                    or "Sem resposta registrada."
+                )
+
+            counts = row.get("source_counts") or {}
+            if counts:
+                st.caption(
+                    "Fontes recuperadas: "
+                    f"CDC `{counts.get('cdc', 0)}` · "
+                    f"Histórico `{counts.get('historico', 0)}` · "
+                    f"STJ `{counts.get('stj', 0)}`"
+                )
+
+            with st.form(f"human_review_{row['id']}"):
+                st.markdown("**Avaliação humana**")
+                current_score = (
+                    float(row["human_score"])
+                    if row.get("human_score") is not None
+                    else 4.0
+                )
+                score = st.slider(
+                    "Nota da resposta principal",
+                    min_value=0.0,
+                    max_value=5.0,
+                    value=current_score,
+                    step=0.5,
+                    help=(
+                        "Na comparação, avalie a resposta RAG como resposta "
+                        "principal da POC."
+                    ),
+                )
+                reviewer = st.text_input(
+                    "Avaliador",
+                    value=row.get("human_reviewer") or "",
+                    placeholder="Ex.: orientador, equipe, avaliador 1",
+                )
+                comment = st.text_area(
+                    "Comentário",
+                    value=row.get("human_comment") or "",
+                    placeholder="O que ficou bom? O que precisa melhorar?",
+                    height=90,
+                )
+                submitted = st.form_submit_button(
+                    "Salvar avaliação humana",
+                    use_container_width=True,
+                )
+                if submitted:
+                    update_human_review(
+                        int(row["id"]),
+                        human_score=score,
+                        human_comment=comment,
+                        human_reviewer=reviewer,
+                    )
+                    st.success("Avaliação humana salva.")
+                    st.rerun()
 
 
 if "messages" not in st.session_state:
@@ -289,23 +509,12 @@ with st.sidebar:
         "Avaliação de qualidade",
         value=compare_mode,
         disabled=not compare_mode,
-        help="No modo comparação, atribui nota de 0 a 5 para cada resposta.",
+        help=(
+            "No modo comparação, três modelos pagos baratos avaliam as respostas "
+            "e a nota final é a média."
+        ),
     )
-
-    judge_model = selected_model
-    if evaluate_quality:
-        judge_default = (
-            DEFAULT_JUDGE_MODEL
-            if DEFAULT_JUDGE_MODEL in model_ids
-            else selected_model
-        )
-        judge_model = st.selectbox(
-            "Avaliador",
-            model_ids,
-            index=model_ids.index(judge_default),
-            format_func=lambda model_id: model_labels.get(model_id, model_id),
-            help="Usado apenas para avaliar a qualidade das respostas.",
-        )
+    judge_models = select_quality_judges(selected_model, free_models)
 
     if st.button("Atualizar modelos", use_container_width=True):
         st.cache_data.clear()
@@ -325,8 +534,9 @@ with st.sidebar:
         st.caption("Modelo de resposta")
         st.markdown(f"**{model_caption(selected_model)}**")
         if evaluate_quality:
-            st.caption("Avaliador")
-            st.markdown(f"**{model_caption(judge_model)}**")
+            st.caption("Avaliadores de qualidade")
+            for judge_model in judge_models:
+                st.markdown(f"- **{model_caption(judge_model)}**")
         st.caption("Chave")
         st.markdown(f"**{selected_api_key_label}**")
 
@@ -370,144 +580,185 @@ examples = [
     },
 ]
 
-status_caption = f"Demonstração ativa: `{active_mode}`"
-if evaluate_quality:
-    status_caption += " · `avaliação de qualidade habilitada`"
-st.caption(status_caption)
+demo_tab, history_tab = st.tabs(["Demonstração", "Histórico"])
 
-selected_example = None
-st.caption("Cenários para demonstrar RAG x Baseline:")
-cols = st.columns(4)
-for index, (col, example) in enumerate(zip(cols, examples)):
-    col.markdown(f"**{example['title']}**")
-    col.caption(example["preview"])
-    if col.button("Usar pergunta", key=f"example_{index}", use_container_width=True):
-        selected_example = example["question"]
+with demo_tab:
+    status_caption = f"Demonstração ativa: `{active_mode}`"
+    if evaluate_quality:
+        status_caption += " · `média de 3 avaliadores`"
+    st.caption(status_caption)
 
-st.caption(f"Modo ativo para a próxima pergunta: `{active_mode}`")
+    selected_example = None
+    st.caption("Cenários para demonstrar RAG x Baseline:")
+    cols = st.columns(4)
+    for index, (col, example) in enumerate(zip(cols, examples)):
+        col.markdown(f"**{example['title']}**")
+        col.caption(example["preview"])
+        if col.button("Usar pergunta", key=f"example_{index}", use_container_width=True):
+            selected_example = example["question"]
 
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
-        details = []
-        if msg.get("generation_mode"):
-            details.append(f"Modo: `{msg['generation_mode']}`")
-        if msg.get("effective_model"):
-            details.append(f"Modelo: `{model_caption(msg['effective_model'])}`")
-        if details:
-            st.caption(" · ".join(details))
+    st.caption(f"Modo ativo para a próxima pergunta: `{active_mode}`")
 
-prompt = selected_example or st.chat_input("Faça uma pergunta sobre o CDC...")
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+            details = []
+            if msg.get("generation_mode"):
+                details.append(f"Modo: `{msg['generation_mode']}`")
+            if msg.get("effective_model"):
+                details.append(f"Modelo: `{model_caption(msg['effective_model'])}`")
+            if msg.get("interaction_id"):
+                details.append(f"Histórico: `#{msg['interaction_id']}`")
+            if details:
+                st.caption(" · ".join(details))
 
-if prompt:
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
+    prompt = selected_example or st.chat_input("Faça uma pergunta sobre o CDC...")
 
-    if compare_mode:
-        with st.chat_message("assistant"):
-            with st.spinner("Consultando RAG e baseline..."):
-                rag = run_generation(
-                    prompt,
-                    use_rag=True,
-                    model_name=selected_model,
-                    api_key=selected_api_key,
-                )
-                baseline = run_generation(
-                    prompt,
-                    use_rag=False,
-                    model_name=selected_model,
-                    api_key=selected_api_key,
-                )
+    if prompt:
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
 
-            st.markdown("### RAG (com recuperação)")
-            st.markdown(rag["answer"])
-            st.caption(
-                f"Modo: `RAG` · Modelo: `{model_caption(rag.get('effective_model') or selected_model)}`"
-            )
-            if not rag.get("error"):
-                render_sources(
-                    rag.get("documents", []),
-                    rag.get("history_documents", []),
-                    rag.get("jurisprudence_documents", []),
-                )
-
-            st.markdown("---")
-            st.markdown("### Baseline (sem recuperação)")
-            st.markdown(baseline["answer"])
-            st.caption(
-                f"Modo: `Baseline` · Modelo: `{model_caption(baseline.get('effective_model') or selected_model)}`"
-            )
-
-            quality = None
-            if evaluate_quality and not rag.get("error") and not baseline.get("error"):
-                with st.spinner("Executando avaliação de qualidade..."):
-                    quality = run_quality_evaluation(
-                        question=prompt,
-                        rag_result=rag,
-                        baseline_result=baseline,
-                        judge_model=judge_model,
+        if compare_mode:
+            with st.chat_message("assistant"):
+                with st.spinner("Consultando RAG e baseline..."):
+                    rag = run_generation(
+                        prompt,
+                        use_rag=True,
+                        model_name=selected_model,
                         api_key=selected_api_key,
                     )
-                    quality["judge_model_display"] = model_caption(
-                        quality.get("effective_judge_model") or judge_model
+                    baseline = run_generation(
+                        prompt,
+                        use_rag=False,
+                        model_name=selected_model,
+                        api_key=selected_api_key,
                     )
-                render_quality_evaluation(quality)
-            elif evaluate_quality:
-                st.warning(
-                    "A avaliação de qualidade foi pulada porque uma das respostas "
-                    "teve erro de geração."
+
+                st.markdown("### RAG (com recuperação)")
+                st.markdown(rag["answer"])
+                st.caption(
+                    f"Modo: `RAG` · Modelo: `{model_caption(rag.get('effective_model') or selected_model)}`"
+                )
+                if not rag.get("error"):
+                    render_sources(
+                        rag.get("documents", []),
+                        rag.get("history_documents", []),
+                        rag.get("jurisprudence_documents", []),
+                    )
+
+                st.markdown("---")
+                st.markdown("### Baseline (sem recuperação)")
+                st.markdown(baseline["answer"])
+                st.caption(
+                    f"Modo: `Baseline` · Modelo: `{model_caption(baseline.get('effective_model') or selected_model)}`"
                 )
 
-        quality_markdown = format_quality_markdown(quality) if quality else ""
-        combined_answer = (
-            "### RAG (com recuperação)\n"
-            f"{rag['answer']}\n\n"
-            "### Baseline (sem recuperação)\n"
-            f"{baseline['answer']}\n\n"
-            f"{quality_markdown}"
-        )
-        st.session_state.messages.append(
-            {
-                "role": "assistant",
-                "content": combined_answer,
-                "generation_mode": "Comparação RAG x Baseline",
-                "effective_model": selected_model,
-                "api_key_label": selected_api_key_label,
-            }
-        )
-    else:
-        generation_mode = "RAG" if mode.startswith("RAG") else "Baseline"
-        with st.chat_message("assistant"):
-            with st.spinner("Consultando..."):
-                result = run_generation(
-                    prompt,
-                    use_rag=generation_mode == "RAG",
-                    model_name=selected_model,
-                    api_key=selected_api_key,
-                )
+                quality = None
+                if evaluate_quality and not rag.get("error") and not baseline.get("error"):
+                    with st.spinner("Executando avaliação de qualidade..."):
+                        quality = run_quality_evaluation(
+                            question=prompt,
+                            rag_result=rag,
+                            baseline_result=baseline,
+                            judge_models=judge_models,
+                            api_key=selected_api_key,
+                        )
+                        for result in quality.get("judge_results", []):
+                            result["judge_model_display"] = model_caption(
+                                result.get("effective_judge_model")
+                                or result.get("judge_model")
+                            )
+                        quality["judge_models_display"] = [
+                            model_caption(model_id) for model_id in judge_models
+                        ]
+                    render_quality_evaluation(quality)
+                elif evaluate_quality:
+                    st.warning(
+                        "A avaliação de qualidade foi pulada porque uma das respostas "
+                        "teve erro de geração."
+                    )
 
-            answer = result["answer"]
-            st.markdown(answer)
-            response_details = [f"Modo: `{generation_mode}`"]
-            if result.get("effective_model"):
-                response_details.append(
-                    f"Modelo: `{model_caption(result['effective_model'])}`"
+                interaction_id = save_interaction_safely(
+                    question=prompt,
+                    mode=active_mode,
+                    compare_mode=True,
+                    response_model=selected_model,
+                    response_model_label=model_caption(selected_model),
+                    api_key_label=selected_api_key_label,
+                    rag_result=rag,
+                    baseline_result=baseline,
+                    ai_quality=quality,
                 )
-            st.caption(" · ".join(response_details))
-            if generation_mode == "RAG" and not result.get("error"):
-                render_sources(
-                    result.get("documents", []),
-                    result.get("history_documents", []),
-                    result.get("jurisprudence_documents", []),
-                )
+                if interaction_id:
+                    st.caption(f"Registro salvo no histórico: `#{interaction_id}`")
 
-        st.session_state.messages.append(
-            {
-                "role": "assistant",
-                "content": answer,
-                "generation_mode": generation_mode,
-                "effective_model": result.get("effective_model"),
-                "api_key_label": selected_api_key_label,
-            }
-        )
+            quality_markdown = format_quality_markdown(quality) if quality else ""
+            combined_answer = (
+                "### RAG (com recuperação)\n"
+                f"{rag['answer']}\n\n"
+                "### Baseline (sem recuperação)\n"
+                f"{baseline['answer']}\n\n"
+                f"{quality_markdown}"
+            )
+            st.session_state.messages.append(
+                {
+                    "role": "assistant",
+                    "content": combined_answer,
+                    "generation_mode": "Comparação RAG x Baseline",
+                    "effective_model": selected_model,
+                    "api_key_label": selected_api_key_label,
+                    "interaction_id": interaction_id,
+                }
+            )
+        else:
+            generation_mode = "RAG" if mode.startswith("RAG") else "Baseline"
+            with st.chat_message("assistant"):
+                with st.spinner("Consultando..."):
+                    result = run_generation(
+                        prompt,
+                        use_rag=generation_mode == "RAG",
+                        model_name=selected_model,
+                        api_key=selected_api_key,
+                    )
+
+                answer = result["answer"]
+                st.markdown(answer)
+                response_details = [f"Modo: `{generation_mode}`"]
+                if result.get("effective_model"):
+                    response_details.append(
+                        f"Modelo: `{model_caption(result['effective_model'])}`"
+                    )
+                st.caption(" · ".join(response_details))
+                if generation_mode == "RAG" and not result.get("error"):
+                    render_sources(
+                        result.get("documents", []),
+                        result.get("history_documents", []),
+                        result.get("jurisprudence_documents", []),
+                    )
+
+                interaction_id = save_interaction_safely(
+                    question=prompt,
+                    mode=generation_mode,
+                    compare_mode=False,
+                    response_model=selected_model,
+                    response_model_label=model_caption(selected_model),
+                    api_key_label=selected_api_key_label,
+                    single_result=result,
+                )
+                if interaction_id:
+                    st.caption(f"Registro salvo no histórico: `#{interaction_id}`")
+
+            st.session_state.messages.append(
+                {
+                    "role": "assistant",
+                    "content": answer,
+                    "generation_mode": generation_mode,
+                    "effective_model": result.get("effective_model"),
+                    "api_key_label": selected_api_key_label,
+                    "interaction_id": interaction_id,
+                }
+            )
+
+with history_tab:
+    render_history_tab()
